@@ -1,0 +1,24 @@
+# Builds a docker image that runs a Postgres server with the Bottled Water
+# plugin installed. Requires that the binaries have been built first --
+# see Dockerfile.build.
+#
+# Usage:
+#
+#   docker build -f build/Dockerfile.postgres -t confluent/postgres-bw:0.1 .
+#   docker run -d --name postgres confluent/postgres-bw:0.1
+#
+# To connect to the running container with psql:
+#
+#   docker run -it --rm --link postgres:postgres postgres:9.4 \
+#     sh -c 'exec psql -h "$POSTGRES_PORT_5432_TCP_ADDR" -p "$POSTGRES_PORT_5432_TCP_PORT" -U postgres'
+#
+# In the psql session, type the following to enable the plugin:
+#
+#   create extension bottledwater;
+
+FROM postgres:9.4
+
+ADD bottledwater-ext.tar.gz /
+ADD avro-1.7.7.tar.gz /
+RUN cp /usr/local/lib/libavro.so.22.0.0 /usr/lib/x86_64-linux-gnu/libavro.so.22.0.0
+COPY build/replication-config.sh /docker-entrypoint-initdb.d/replication-config.sh

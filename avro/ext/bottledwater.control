@@ -1,0 +1,3 @@
+comment = 'Exports a snapshot of a Postgres database, and stream of changes, to Kafka in Avro format'
+default_version = '0.1'
+relocatable = true

@@ -1,0 +1,53 @@
+# Builds Bottled Water and its dependencies inside a Docker container.
+# The resulting image is quite large, because all the development tools
+# are installed into it. However, the build process generates tar'ed
+# binaries which you can copy out and apply to a base Postgres image.
+#
+# Usage:
+#
+#   docker build -f build/Dockerfile.build -t bwbuild:v1 .
+#   docker run -it --name bwbuild --rm bwbuild:v1 bash
+#   (Meanwhile, in another terminal:)
+#   docker cp bwbuild:/avro-1.7.7.tar.gz .
+#   docker cp bwbuild:/librdkafka-0.8.6.tar.gz .
+#   docker cp bwbuild:/bottledwater-ext.tar.gz .
+#   docker cp bwbuild:/bottledwater-bin.tar.gz .
+#   (Now type `exit` in the bash shell above.)
+#
+# See the other Dockerfiles in this directory for using those build artifacts.
+
+FROM postgres:9.4
+
+RUN apt-get update && \
+    apt-get install -y \
+        build-essential \
+        cmake \
+        curl \
+        libcurl4-openssl-dev \
+        libjansson-dev \
+        libpq-dev \
+        pkg-config \
+        postgresql-server-dev-9.4
+
+# Avro
+RUN curl -o /root/avro-c-1.7.7.tar.gz -SL http://archive.apache.org/dist/avro/avro-1.7.7/c/avro-c-1.7.7.tar.gz && \
+    tar -xzf /root/avro-c-1.7.7.tar.gz -C /root && \
+    mkdir /root/avro-c-1.7.7/build && \
+    cd /root/avro-c-1.7.7/build && \
+    cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_BUILD_TYPE=RelWithDebInfo && \
+    make && make test && make install && cd / && \
+    tar czf avro-1.7.7.tar.gz usr/local/include/avro usr/local/lib/libavro* usr/local/lib/pkgconfig/avro-c.pc
+
+# librdkafka
+RUN curl -o /root/librdkafka-0.8.6.tar.gz -SL https://github.com/edenhill/librdkafka/archive/0.8.6.tar.gz && \
+    tar -xzf /root/librdkafka-0.8.6.tar.gz -C /root && \
+    cd /root/librdkafka-0.8.6 && ./configure && make && make install && cd / && \
+    tar czf librdkafka-0.8.6.tar.gz usr/local/include/librdkafka usr/local/lib/librdkafka*
+
+# Bottled Water
+COPY . /root/bottledwater
+RUN cd /root/bottledwater && \
+    make clean && make && make install && cd / && \
+    tar czf bottledwater-ext.tar.gz usr/lib/postgresql/9.4/lib/bottledwater.so usr/share/postgresql/9.4/extension/bottledwater* && \
+    cp /root/bottledwater/kafka/bottledwater /root/bottledwater/client/bwtest /usr/local/bin && \
+    tar czf bottledwater-bin.tar.gz usr/local/bin/bottledwater usr/local/bin/bwtest
